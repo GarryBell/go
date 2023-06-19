@@ -1,0 +1,2 @@
+# go
+Simple go endpoint
