@@ -25,7 +25,7 @@ func processExternalAPICall(w http.ResponseWriter, response *http.Response) Resp
 		log.Fatal(err)
 	}
 	var result Response
-	var dummyData = []byte(`{"data":`)
+	var dummyData = []byte(`{"data":`) // I'm sure there's some better way of doing this
 	dummyData = append(dummyData, responseData...)
 	dummyData = append(dummyData, '}')
 	if err := json.Unmarshal(dummyData, &result); err != nil {
