@@ -10,11 +10,7 @@ import (
 	"strconv"
 )
 
-var ids []int
-var result Response
-
 func main() {
-	ids, result = loadIds()
 	http.HandleFunc("/users/", usersHandler)
 
 	fmt.Printf("Starting server at port 8080\n")
@@ -23,11 +19,7 @@ func main() {
 	}
 }
 
-func loadIds() ([]int, Response) {
-	response, err := http.Get("https://jsonplaceholder.typicode.com/users")
-	if err != nil {
-		log.Fatal(err)
-	}
+func processExternalAPICall(w http.ResponseWriter, response *http.Response) Response {
 	responseData, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		log.Fatal(err)
@@ -37,56 +29,48 @@ func loadIds() ([]int, Response) {
 	dummyData = append(dummyData, responseData...)
 	dummyData = append(dummyData, '}')
 	if err := json.Unmarshal(dummyData, &result); err != nil {
-		fmt.Println("Cannot unmarshal JSON")
-		fmt.Println(err)
+		fmt.Fprintf(w, "Cannot unmarshal JSON")
+		fmt.Fprintf(w, err.Error())
 	}
 	var ids []int
 	for i := 0; i < len(result.Data); i++ {
 		ids = append(ids, result.Data[i].Id)
 	}
-	return ids, result
-}
+	return result
 
-func handleInput(name string, w http.ResponseWriter) {
-	if itemExists(ids, name) {
-		var intVal, err = strconv.Atoi(name)
-		if err == nil {
-			for _, v := range result.Data {
-				if v.Id == intVal {
-					var item = v
-					responseToString(item)
-					var payload ReturnItem
-					payload.Id = item.Id
-					payload.Address = responseToString(item)
-					res, _ := json.Marshal(payload)
-					fmt.Fprintf(w, string(res))
-				}
-			}
-		} else {
-
-			fmt.Fprintf(w, "Error parsing id")
-			fmt.Fprintf(w, string(err.Error()))
-		}
-
-	} else {
-		fmt.Fprintf(w, "Name not found")
-	}
 }
 
 func usersHandler(w http.ResponseWriter, r *http.Request) {
 	var name string = path.Base(r.URL.Path)
-	handleInput(name, w)
+	var intVal, err = strconv.Atoi(name)
+	if err != nil {
+		fmt.Fprintf(w, "Error parsing id")
+		return
+	}
+
+	// make api call
+	response, err := http.Get("https://jsonplaceholder.typicode.com/users")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	result := processExternalAPICall(w, response)
+
+	for _, v := range result.Data {
+		if v.Id == intVal {
+			var item = v
+			responseToString(item)
+			var payload ReturnItem
+			payload.Id = item.Id
+			payload.Address = responseToString(item)
+			res, _ := json.Marshal(payload)
+			fmt.Fprintf(w, string(res))
+			return
+		}
+	}
+	fmt.Fprintf(w, "ID not found")
 }
 
 func responseToString(item Item) string {
 	return item.Address.City + " " + item.Address.Zipcode + " (" + item.Address.Geo.Lat + ", " + item.Address.Geo.Lng + ")"
-}
-
-func itemExists(arr []int, item string) bool {
-	for i := 0; i < len(arr); i++ {
-		if strconv.Itoa(arr[i]) == item {
-			return true
-		}
-	}
-	return false
 }
